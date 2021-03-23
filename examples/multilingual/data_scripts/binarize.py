@@ -50,7 +50,7 @@ def get_data_size(raw):
     ret = call_output(cmd)
     return int(ret.split()[0])
 
-def encode_spm(model, direction, prefix='', splits=['train', 'test', 'valid'], pairs_per_shard=None):
+def encode_spm(model, direction, prefix='', splits=['train', 'test', 'test1', 'valid'], pairs_per_shard=None):
     src, tgt = direction.split('-')
 
     for split in splits:
@@ -69,7 +69,7 @@ def binarize_(
     bpe_dir,
     databin_dir,
     direction, spm_vocab=SPM_VOCAB, 
-    splits=['train', 'test', 'valid'],
+    splits=['train', 'test', 'test1', 'valid'],
 ):
     src, tgt = direction.split('-')
 
@@ -108,6 +108,8 @@ def binarize_(
         input_options.append(f"--validpref {bpe_dir}/valid.bpe")
     if 'test' in splits and glob.glob(f"{bpe_dir}/test.bpe*"):
         input_options.append(f"--testpref {bpe_dir}/test.bpe")   
+        if 'test1' in splits and glob.glob(f"{bpe_dir}/test1.bpe*"):
+            input_options[-1] += f",{bpe_dir}/test1.bpe"
     if len(input_options) > 0:    
         cmd = " ".join(cmds + input_options)
         print(cmd)
@@ -117,7 +119,7 @@ def binarize_(
 def binarize(
     databin_dir,
     direction, spm_vocab=SPM_VOCAB, prefix='',
-    splits=['train', 'test', 'valid'],
+    splits=['train', 'test', 'test1', 'valid'],
     pairs_per_shard=None,
 ):
     def move_databin_files(from_folder, to_folder):
@@ -149,7 +151,7 @@ def binarize(
                 shard_bpe_dir, shard_folder, direction,
                 spm_vocab=spm_vocab, splits=["train"])
 
-            for test_data in glob.glob(f"{bpe_databin_dir}/valid.*") + glob.glob(f"{bpe_databin_dir}/test.*"):
+            for test_data in glob.glob(f"{bpe_databin_dir}/valid.*") + glob.glob(f"{bpe_databin_dir}/test.*") + glob.glob(f"{bpe_databin_dir}/test1.*"):
                 filename = os.path.split(test_data)[-1]
                 try:
                     os.symlink(test_data, f"{databin_shard_folder}/{filename}")
@@ -181,14 +183,15 @@ if __name__ == '__main__':
     raw_files = itertools.chain(
         glob.glob(f'{RAW_DIR}/train*'),
         glob.glob(f'{RAW_DIR}/valid*'),
-        glob.glob(f'{RAW_DIR}/test*'),
+        glob.glob(f'{RAW_DIR}/test.*'),
+        glob.glob(f'{RAW_DIR}/test1.*'),
     )
 
     directions = [os.path.split(file_path)[-1].split('.')[1] for file_path in raw_files]
 
-    for direction in directions:
+    for direction in set(directions):
         prefix = ""
-        splits = ['train', 'valid', 'test']
+        splits = ['train', 'valid', 'test', 'test1']
         try:
             shutil.rmtree(f'{BPE_DIR}/{direction}{prefix}', ignore_errors=True)
             os.mkdir(f'{BPE_DIR}/{direction}{prefix}')

@@ -66,6 +66,10 @@ class BARTModel(TransformerModel):
             action="store_true",
             help="Apply spectral normalization on the classification head",
         )
+        parser.add_argument(
+            "--extend-mbart-embed",
+            action="store_true",
+        )
 
     @property
     def supported_targets(self):
@@ -228,6 +232,24 @@ class BARTModel(TransformerModel):
             truncate_emb("decoder.embed_tokens.weight")
             truncate_emb("encoder.output_projection.weight")
             truncate_emb("decoder.output_projection.weight")
+
+        mbart_dict_size = loaded_dict_size - 1
+        encoder_dict_size = len(self.encoder.dictionary)
+        def resize_emb(key, newsize):
+            if key in state_dict:
+                state_dict[key].resize_((newsize, state_dict[key].size()[-1]))
+
+        if (
+            mbart_dict_size != encoder_dict_size
+            and self.args.extend_mbart_embed
+        ):
+            logger.info(
+                f"Resizing from {encoder_dict_size} to {mbart_dict_size}."
+            )
+            resize_emb("encoder.embed_tokens.weight", encoder_dict_size)
+            resize_emb("decoder.embed_tokens.weight", encoder_dict_size)
+            resize_emb("encoder.output_projection.weight", encoder_dict_size)
+            resize_emb("decoder.output_projection.weight", encoder_dict_size)
 
         # When continued pretraining on new set of languages for mbart,
         # add extra lang embeddings at the end of embed_tokens.
